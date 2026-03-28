@@ -1,6 +1,8 @@
-name: helloworld # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
-display_name: helloworld # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
-desc: AstrBot 插件示例。 # 插件简短描述
-version: v1.3.0 # 插件版本号。格式：v1.1.1 或者 v1.1
-author: Soulter # 作者
-repo: https://github.com/Soulter/helloworld # 插件的仓库地址
+name: "astrbot_plugin_anti_memes" # ⚠️ 必填项：插件的标识包名，必须与所在文件夹的名称完全一致
+author: "Qrzzzz"                    # 必填项：作者名
+version: "1.0.0"                      # 必填项：版本号
+description: "自动检测并撤回指定群聊特定用户的图片" # 必填项：简短描述
+display_name: "图片精准撤回助手"          # 选填：在 AstrBot 管理面板和插件市场显示的友好名称，建议填写
+support_platforms:                    # 选填：声明该插件支持的底层平台
+  - QQ
+astrbot_version: ">=4.16"             # 选填：声明该插件依赖的 AstrBot 最低版本（遵循 PEP 440 格式，不带 v 前缀）
