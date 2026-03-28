@@ -3,6 +3,7 @@
 基于 AstrBot 的指定群聊用户图片自动撤回插件 / An auto-image-recall plugin for specific users in QQ groups based on AstrBot.
 
 > 本插件基于 Gemini 3.1 Pro 进行辅助设计与编辑，如有功能缺漏或异常行为，欢迎提交 Issue 或自行优化实现。
+> 当前仅支持基于 QQ 的 aiohttp / OneBot V11 平台实现。
 
 > [!NOTE]
 > This repo is a plugin for [AstrBot](https://github.com/AstrBotDevs/AstrBot).
@@ -42,6 +43,8 @@
 - [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
 
 > This plugin was assisted and edited based on Gemini 3.1 Pro. If there are any missing features or unexpected behaviors, feel free to submit an issue or improve it yourself.
+
+> Currently supports only QQ platforms based on aiohttp / OneBot V11 implementations.
 
 An auto-image-recall plugin for specific users in QQ groups based on AstrBot.
 
