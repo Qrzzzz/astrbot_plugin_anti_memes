@@ -1,55 +1,60 @@
-<div align="center">
-
-# 🛡️ AstrBot Anti Memes Plugin
-
-### 基于 AstrBot 的 QQ 指定用户图片自动检测与撤回插件
-
-**QQ / OneBot V11 / aiohttp / 自动撤回 / 群组管理 / 双语文档**
-
-[中文](./README.md) · [English](./README_EN.md) · [AstrBot](https://github.com/AstrBotDevs/AstrBot) · [Napneko API](https://napneko.github.io/api/4.18.1)
-
-![AstrBot Plugin](https://img.shields.io/badge/AstrBot-Plugin-4B5563)
-![Platform](https://img.shields.io/badge/Platform-QQ-12B7F5)
-![Protocol](https://img.shields.io/badge/Protocol-OneBot%20V11-0EA5E9)
-![License](https://img.shields.io/github/license/Qrzzzz/astrbot_plugin_anti_memes)
-
-</div>
+# 图片精准撤回助手（AstrBot 插件）
 
 ## 项目简介
+`astrbot_plugin_anti_memes` 用于在 QQ 群中监控“指定群号 + 指定 QQ 号”的图片消息，并自动调用 OneBot v11 `delete_msg` 尝试撤回（取决于机器人权限与平台实现）。
 
-`astrbot_plugin_anti_memes` 用于在 QQ 群聊中自动检测指定用户发送的图片消息，并在满足权限条件时自动触发撤回，适用于内容管理与群组秩序维护场景。
+## 适用平台
+- 仅支持：`aiocqhttp`（QQ / OneBot v11）。
 
-> 当前仅支持基于 QQ 的 aiohttp / OneBot V11 平台实现。
-
-## 功能特性
-
-- 🎯 **精准监控**：支持按「群号 + QQ 号」配置目标用户。
-- 🛡️ **双重保障**：实时事件检测 + 后台轮询兜底，降低漏检概率。
-- 👥 **多目标并发**：支持多个群、多个用户规则并行执行。
+## 功能边界
+- 仅处理**图片消息**。
+- 不处理文字、语音、视频等消息类型。
+- 是否撤回成功取决于：
+  - 机器人是否具备群管理员/群主能力；
+  - 目标平台是否支持并允许 `delete_msg`。
+- 本版本采用**实时事件检测**（不启用后台轮询兜底）。
 
 ## 安装方法
+1. 将仓库放入 AstrBot 插件目录（如 `data/plugins/astrbot_plugin_anti_memes`）。
+2. 重启 AstrBot。
+3. 在插件管理中确认已加载。
 
-1. 将本仓库克隆或下载到 AstrBot 的 `data/plugins/` 目录。
-2. 确保文件夹名为 `astrbot_plugin_anti_memes`。
-3. 重启 AstrBot 主进程加载插件。
+## WebUI 配置说明
+插件通过 AstrBot 官方配置系统管理（`_conf_schema.json`）：
 
-## 使用说明
+- `targets`：监控规则字典，键为群号字符串，值为 QQ 号字符串数组。
+  - 示例：`{"123456789": ["987654321", "123123123"]}`
+- `enable_realtime_recall`：是否启用实时检测（默认 `true`）。
+- `enable_polling_fallback`：保留配置项，默认 `false`（当前实现不启用轮询）。
+- `poll_interval_seconds`：轮询间隔配置项（当前实时模式下不生效）。
+- `processed_cache_size`：已处理消息 ID 缓存上限。
 
-### 聊天指令
+## 指令说明
+- `/add_recall <群号> <QQ号>`：添加监控规则。
+- `/del_recall <群号> <QQ号>`：删除监控规则。
+- `/list_recall`：查看全部规则。
 
-- 添加监控：`/add_recall <群号> <QQ号>`
-  - 示例：`/add_recall 123456789 987654321`
-- 移除监控：`/del_recall <群号> <QQ号>`
-  - 示例：`/del_recall 123456789 987654321`
-- 查看规则：`/list_recall`
+> 参数必须是纯数字字符串。
 
-### 注意事项
+## 权限要求
+- 只有管理员（或具备管理权限的调用者）可使用配置指令。
+- 机器人需要在目标群具备足够权限，才能成功撤回消息。
 
-1. 撤回调用的是底层 `delete_msg` API，机器人需在目标群拥有管理员或群主权限。
-2. 本插件仅适配 NapCat / OneBot V11 的 QQ 平台实现。
+## 常见问题
+### 为什么撤回失败？
+常见原因：机器人权限不足、消息不可撤回、平台 API 拒绝、消息已不存在。
 
-## 相关链接
+### 为什么重启后规则还在？
+规则保存在 AstrBot 插件配置中，不写入插件源码目录，重启后会自动加载。
 
-- [AstrBot 项目主页](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot 插件开发文档（中文）](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [Napneko API 文档](https://napneko.github.io/api/4.18.1)
+### 为什么不建议开启轮询？
+轮询依赖额外 API 能力、稳定 bot 对象和限流策略；为确保发布稳定性，本版本默认且实际采用实时事件模式。
+
+### NapCat / OneBot v11 是否支持？
+原则上支持 OneBot v11 的 `delete_msg` 场景；请在你的网关实现中实测权限和风控表现。
+
+## 安全与合规声明
+本插件仅用于群组管理与秩序维护，不应用于骚扰、滥用或绕过平台规则。插件日志不记录图片内容、图片 URL 或消息正文，只记录必要 ID 和错误类型。
+
+## 版本说明
+- `1.0.0`：发布级重构版本，统一配置体系、权限边界、事件处理与缓存策略。

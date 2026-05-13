@@ -4,8 +4,9 @@ version: "1.0.0"
 desc: |-
   【仅支持基于 QQ 的 aiohttp / OneBot V11 平台】该插件基于 AstrBot，用于对指定用户发送的图片进行自动检测并触发撤回操作（需权限支持），适用于内容管理与群组秩序维护。支持自定义目标用户与规则配置。
   (Only supports QQ platforms based on aiohttp / OneBot V11.)This plugin for AstrBot monitors images sent by specified users and automatically recalls them (with proper permissions). It is designed for moderation and group management, with configurable targets and rules.
+short_desc: "按群号与 QQ 号配置目标用户，自动撤回其发送的图片消息。"
 display_name: "图片精准撤回助手"
 repo: "https://github.com/Qrzzzz/astrbot_plugin_anti_memes"
 support_platforms:
   - aiocqhttp
-astrbot_version: ">=4.16"
+astrbot_version: ">=4.16,<5"

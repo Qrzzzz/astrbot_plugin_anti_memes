@@ -1,0 +1,30 @@
+{
+  "targets": {
+    "type": "dict",
+    "description": "监控目标配置。键为群号，值为该群内需要自动撤回图片的 QQ 号列表。",
+    "hint": "示例：{\"123456789\": [\"987654321\", \"123123123\"]}。建议通过 /add_recall 和 /del_recall 指令维护。",
+    "default": {},
+    "editor_mode": true,
+    "editor_language": "json"
+  },
+  "enable_realtime_recall": {
+    "type": "bool",
+    "description": "启用实时消息事件检测。",
+    "default": true
+  },
+  "enable_polling_fallback": {
+    "type": "bool",
+    "description": "启用 OneBot v11 历史消息轮询兜底。仅在确认当前适配器支持 get_group_msg_history 且可稳定获取 bot API 时启用。",
+    "default": false
+  },
+  "poll_interval_seconds": {
+    "type": "int",
+    "description": "轮询间隔秒数。仅在启用轮询兜底时生效。",
+    "default": 30
+  },
+  "processed_cache_size": {
+    "type": "int",
+    "description": "已处理消息 ID 缓存上限，用于避免重复撤回。",
+    "default": 2000
+  }
+}
