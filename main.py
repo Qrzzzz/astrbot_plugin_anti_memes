@@ -1,203 +1,210 @@
-import os
-import json
-import asyncio
-from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from __future__ import annotations
+
+from collections import OrderedDict
+from typing import Any
+
 from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.star import Context, Star, register
 
-# 定义配置文件的路径，存放在当前插件所在目录下
-PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(PLUGIN_DIR, "config.json")
+from core import is_digits, mark_processed, normalize_targets, raw_message_has_image
 
-@register("anti_memes", "YourName", "轮询并精准撤回多群聊多用户的图片", "5.0.0")
+PLUGIN_NAME = "astrbot_plugin_anti_memes"
+PLUGIN_AUTHOR = "Qrzzzz"
+PLUGIN_DESC = "按群号与 QQ 号配置目标用户，自动撤回其发送的图片消息。"
+PLUGIN_VERSION = "1.0.0"
+
+USAGE_ADD = "用法：/add_recall <群号> <QQ号>"
+USAGE_DEL = "用法：/del_recall <群号> <QQ号>"
+
+
+@register(PLUGIN_NAME, PLUGIN_AUTHOR, PLUGIN_DESC, PLUGIN_VERSION)
 class ImageRecaller(Star):
-    def __init__(self, context: Context):
+    """Monitor configured users in configured groups and recall image messages."""
+
+    def __init__(self, context: Context, config: Any | None = None) -> None:
         super().__init__(context)
-        # 配置结构: {"targets": {"群号1": [QQ号1, QQ号2], "群号2": [QQ号3]}}
-        self.config = {"targets": {}} 
-        self.active_bot = None  
-        self.polling_task = None
-        self.processed_msg_ids = set() 
-        
-        # 初始化时加载本地配置
-        self._load_config()
+        self.config = config if config is not None else getattr(self, "config", None)
+        self._processed_lock = __import__("asyncio").Lock()
+        self.processed_msg_ids: OrderedDict[str, None] = OrderedDict()
+        self.targets: dict[str, list[str]] = normalize_targets(self._config_get("targets", {}))
 
-    def _load_config(self):
-        """加载本地 JSON 配置文件（兼容 WebUI 修改）"""
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                    self.config = json.load(f)
-            except Exception as e:
-                logger.error(f"加载配置文件失败: {e}")
-        else:
-            self._save_config()
+    async def initialize(self) -> None:
+        self.targets = normalize_targets(self._config_get("targets", {}))
+        logger.info("anti_memes plugin initialized (realtime recall mode).")
 
-    def _save_config(self):
-        """保存配置到本地 JSON"""
+    async def terminate(self) -> None:
+        logger.info("anti_memes plugin terminated.")
+
+    def _config_get(self, key: str, default: Any) -> Any:
+        if self.config is None:
+            return default
+        if hasattr(self.config, "get"):
+            return self.config.get(key, default)
+        return default
+
+    def _save_config(self) -> None:
+        if self.config is not None and hasattr(self.config, "save_config"):
+            self.config.save_config()
+
+    def _set_targets(self, targets: dict[str, list[str]]) -> None:
+        self.targets = normalize_targets(targets)
+        if self.config is not None and hasattr(self.config, "__setitem__"):
+            self.config["targets"] = self.targets
+        self._save_config()
+
+    def _has_manage_permission(self, event: AstrMessageEvent) -> bool:
+        sender = getattr(getattr(event, "message_obj", None), "sender", None)
+        role = str(getattr(sender, "role", "")).lower()
+        if role in {"owner", "admin"}:
+            return True
+        for attr in ("is_admin", "is_superuser"):
+            checker = getattr(event, attr, None)
+            if callable(checker):
+                try:
+                    if checker():
+                        return True
+                except Exception:
+                    continue
+        return False
+
+    def _message_has_image(self, message_obj: Any) -> bool:
+        chain = getattr(message_obj, "message", None)
+        if isinstance(chain, list):
+            for node in chain:
+                node_type = str(getattr(node, "type", "")).lower()
+                class_name = node.__class__.__name__.lower()
+                if node_type == "image" or class_name == "image":
+                    return True
+                if isinstance(node, dict) and str(node.get("type", "")).lower() == "image":
+                    return True
+        return raw_message_has_image(getattr(message_obj, "raw_message", None))
+
+    def _cache_limit(self) -> int:
+        value = self._config_get("processed_cache_size", 2000)
         try:
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.config, f, indent=4, ensure_ascii=False)
-        except Exception as e:
-            logger.error(f"保存配置文件失败: {e}")
+            limit = int(value)
+        except (TypeError, ValueError):
+            return 2000
+        return max(100, limit)
 
-    async def initialize(self):
-        self.polling_task = asyncio.create_task(self.poll_messages())
-        logger.info("AntiMemes 插件已初始化，多群轮询任务已就绪。")
+    def _is_processed(self, message_id: str) -> bool:
+        return message_id in self.processed_msg_ids
 
-    async def terminate(self):
-        if self.polling_task:
-            self.polling_task.cancel()
+    def _mark_processed(self, message_id: str) -> None:
+        mark_processed(self.processed_msg_ids, message_id, self._cache_limit())
+
+    async def _try_recall(
+        self, event: AstrMessageEvent, message_id: str, group_id: str, user_id: str
+    ) -> bool:
+        try:
+            await event.bot.api.call_action("delete_msg", message_id=int(message_id))
+            logger.info("recall success group=%s user=%s message=%s", group_id, user_id, message_id)
+            return True
+        except Exception as exc:
+            logger.warning(
+                "recall failed group=%s user=%s message=%s err=%s",
+                group_id,
+                user_id,
+                message_id,
+                exc,
+            )
+            return False
 
     @filter.command("add_recall")
-    async def add_recall(self, event: AstrMessageEvent, group_id: str, user_id: str):
-        """添加要监控撤回的目标。用法: /add_recall <群号> <QQ号>"""
-        self.active_bot = event.bot
-        
-        targets = self.config.setdefault("targets", {})
-        # JSON 的 key 必须是字符串
-        group_users = targets.setdefault(str(group_id), [])
-        
-        user_id_int = int(user_id)
-        if user_id_int not in group_users:
-            group_users.append(user_id_int)
-            self._save_config()
-            yield event.plain_result(f"✅ 添加成功！\n群聊 {group_id} 已新增监控用户: {user_id}")
-        else:
-            yield event.plain_result("⚠️ 该用户已经在当前群聊的监控列表中。")
+    async def add_recall(
+        self, event: AstrMessageEvent, group_id: str | None = None, user_id: str | None = None
+    ):
+        """添加监控目标。用法：/add_recall <群号> <QQ号>"""
+        if not self._has_manage_permission(event):
+            yield event.plain_result("❌ 权限不足：仅管理员可配置规则。")
+            return
+        if not group_id or not user_id:
+            yield event.plain_result(f"参数错误，{USAGE_ADD}")
+            return
+
+        group_id, user_id = group_id.strip(), user_id.strip()
+        if not is_digits(group_id) or not is_digits(user_id):
+            yield event.plain_result(f"群号和 QQ 号必须为纯数字字符串。{USAGE_ADD}")
+            return
+
+        targets = dict(self.targets)
+        users = list(targets.get(group_id, []))
+        if user_id in users:
+            yield event.plain_result("⚠️ 该用户已在监控列表中。")
+            return
+
+        users.append(user_id)
+        targets[group_id] = users
+        self._set_targets(targets)
+        yield event.plain_result(f"✅ 已添加监控：群 {group_id} 用户 {user_id}")
 
     @filter.command("del_recall")
-    async def del_recall(self, event: AstrMessageEvent, group_id: str, user_id: str):
-        """移除监控目标。用法: /del_recall <群号> <QQ号>"""
-        targets = self.config.get("targets", {})
-        group_users = targets.get(str(group_id), [])
-        
-        user_id_int = int(user_id)
-        if user_id_int in group_users:
-            group_users.remove(user_id_int)
-            # 如果该群没人了，直接清理掉这个群的 key
-            if not group_users:
-                del targets[str(group_id)]
-            self._save_config()
-            yield event.plain_result(f"🗑️ 移除成功！\n已取消监控群聊 {group_id} 中的用户: {user_id}")
+    async def del_recall(
+        self, event: AstrMessageEvent, group_id: str | None = None, user_id: str | None = None
+    ):
+        """删除监控目标。用法：/del_recall <群号> <QQ号>"""
+        if not self._has_manage_permission(event):
+            yield event.plain_result("❌ 权限不足：仅管理员可配置规则。")
+            return
+        if not group_id or not user_id:
+            yield event.plain_result(f"参数错误，{USAGE_DEL}")
+            return
+
+        group_id, user_id = group_id.strip(), user_id.strip()
+        if not is_digits(group_id) or not is_digits(user_id):
+            yield event.plain_result(f"群号和 QQ 号必须为纯数字字符串。{USAGE_DEL}")
+            return
+
+        targets = dict(self.targets)
+        users = list(targets.get(group_id, []))
+        if user_id not in users:
+            yield event.plain_result("⚠️ 未找到该监控规则。")
+            return
+
+        users.remove(user_id)
+        if users:
+            targets[group_id] = users
         else:
-            yield event.plain_result("⚠️ 未在监控列表中找到该用户。")
+            targets.pop(group_id, None)
+        self._set_targets(targets)
+        yield event.plain_result(f"🗑️ 已移除监控：群 {group_id} 用户 {user_id}")
 
     @filter.command("list_recall")
     async def list_recall(self, event: AstrMessageEvent):
-        """查看当前的监控列表。用法: /list_recall"""
-        targets = self.config.get("targets", {})
-        if not targets:
+        """列出全部监控规则。用法：/list_recall"""
+        if not self._has_manage_permission(event):
+            yield event.plain_result("❌ 权限不足：仅管理员可查看规则。")
+            return
+        if not self.targets:
             yield event.plain_result("📭 当前监控列表为空。")
             return
-            
-        msg = "🔍 当前监控列表:\n"
-        for gid, uids in targets.items():
-            msg += f"- 群 {gid}: {', '.join(map(str, uids))}\n"
-        yield event.plain_result(msg.strip())
 
-    async def poll_messages(self):
-        """后台轮询任务：多群遍历兜底扫描"""
-        while True:
-            await asyncio.sleep(10) 
-            
-            targets = self.config.get("targets", {})
-            if not targets or not self.active_bot:
-                continue
-                
-            for group_id_str, user_ids in targets.items():
-                # 跳过空列表
-                if not user_ids:
-                    continue
-                    
-                group_id = int(group_id_str)
-                
-                try:
-                    history_result = await self.active_bot.api.call_action(
-                        "get_group_msg_history", 
-                        group_id=group_id
-                    )
-                    
-                    if not history_result or 'messages' not in history_result:
-                        continue
-                        
-                    messages = history_result['messages']
-                    
-                    for msg in messages:
-                        msg_id = msg.get("message_id")
-                        sender_id = msg.get("sender", {}).get("user_id")
-                        
-                        # 判断是否为目标用户或已处理消息
-                        if msg_id in self.processed_msg_ids or sender_id not in user_ids:
-                            continue
-                            
-                        raw_message = msg.get("message", [])
-                        has_image = False
-                        
-                        if isinstance(raw_message, list):
-                            for node in raw_message:
-                                if isinstance(node, dict) and node.get("type") == "image":
-                                    has_image = True
-                                    break
-                        elif isinstance(raw_message, str):
-                            if "[CQ:image" in raw_message:
-                                has_image = True
-                                
-                        if has_image:
-                            await self.active_bot.api.call_action("delete_msg", message_id=int(msg_id))
-                            logger.info(f"[轮询兜底] 成功撤回群 {group_id} 用户 {sender_id} 的图片，消息ID: {msg_id}")
-                        
-                        self.processed_msg_ids.add(msg_id)
-                        
-                    if len(self.processed_msg_ids) > 2000:
-                        self.processed_msg_ids = set(list(self.processed_msg_ids)[-1000:])
-
-                except asyncio.CancelledError:
-                    return
-                except Exception as e:
-                    logger.error(f"群 {group_id} 轮询任务异常: {e}")
-                
-                # 防风控机制：处理完一个群的历史记录后，微停 1 秒再请求下一个群，避免 API 限流
-                await asyncio.sleep(1)
+        lines = ["🔍 当前监控列表："]
+        for group_id in sorted(self.targets.keys()):
+            lines.append(f"- 群 {group_id}: {', '.join(self.targets[group_id])}")
+        yield event.plain_result("\n".join(lines))
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    async def on_group_message(self, event: AstrMessageEvent):
-        """实时拦截机制：支持多群多目标"""
-        targets = self.config.get("targets", {})
-        if not targets:
+    async def on_group_message(self, event: AstrMessageEvent) -> None:
+        if not self._config_get("enable_realtime_recall", True):
             return
-
         message_obj = event.message_obj
-        group_id_str = str(message_obj.group_id)
-        
-        # 1. 检查当前群是否在监控列表中
-        if group_id_str not in targets:
-            return
-            
-        # 2. 检查发信人是否在当前群的监控名单中
-        sender_id = int(message_obj.sender.user_id)
-        if sender_id not in targets[group_id_str]:
-            return
+        group_id = str(getattr(message_obj, "group_id", ""))
+        user_id = str(getattr(getattr(message_obj, "sender", None), "user_id", ""))
+        message_id = str(getattr(message_obj, "message_id", ""))
 
-        # 捕获最新激活的 bot 实例供轮询使用
-        self.active_bot = event.bot
-
-        msg_id = int(message_obj.message_id)
-        if msg_id in self.processed_msg_ids:
+        if not (is_digits(group_id) and is_digits(user_id) and is_digits(message_id)):
+            return
+        if group_id not in self.targets or user_id not in self.targets[group_id]:
+            return
+        if not self._message_has_image(message_obj):
             return
 
-        raw_msg = message_obj.raw_message
-        has_image = False
-        
-        if isinstance(raw_msg, str) and "[CQ:image" in raw_msg:
-            has_image = True
-        elif isinstance(raw_msg, list):
-            has_image = any(isinstance(node, dict) and node.get("type") == "image" for node in raw_msg)
-
-        if has_image:
-            try:
-                await event.bot.api.call_action("delete_msg", message_id=msg_id)
-                logger.info(f"[实时拦截] 成功撤回群 {group_id_str} 用户 {sender_id} 的图片，消息ID: {msg_id}")
-                self.processed_msg_ids.add(msg_id)
-            except Exception as e:
-                logger.error(f"实时撤回异常，将交由轮询兜底处理: {e}")
+        async with self._processed_lock:
+            if self._is_processed(message_id):
+                return
+            ok = await self._try_recall(event, message_id, group_id, user_id)
+            self._mark_processed(message_id)
+            if ok:
+                event.stop_event()

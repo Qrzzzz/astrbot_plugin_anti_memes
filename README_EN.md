@@ -1,55 +1,58 @@
-<div align="center">
-
-# 🛡️ AstrBot Anti Memes Plugin
-
-### Auto-detect and recall image messages from specified QQ users in AstrBot
-
-**QQ / OneBot V11 / aiohttp / Auto Recall / Moderation / Bilingual Docs**
-
-[English](./README_EN.md) · [中文](./README.md) · [AstrBot](https://github.com/AstrBotDevs/AstrBot) · [Napneko API](https://napneko.github.io/api/4.18.1)
-
-![AstrBot Plugin](https://img.shields.io/badge/AstrBot-Plugin-4B5563)
-![Platform](https://img.shields.io/badge/Platform-QQ-12B7F5)
-![Protocol](https://img.shields.io/badge/Protocol-OneBot%20V11-0EA5E9)
-![License](https://img.shields.io/github/license/Qrzzzz/astrbot_plugin_anti_memes)
-
-</div>
+# Image Precision Recall Assistant (AstrBot Plugin)
 
 ## Overview
+`astrbot_plugin_anti_memes` monitors image messages from configured users in configured QQ groups, then calls OneBot v11 `delete_msg` to recall them (subject to bot permissions and adapter behavior).
 
-`astrbot_plugin_anti_memes` monitors image messages sent by configured users in configured QQ groups and triggers recall automatically (with sufficient bot permissions). It is designed for moderation and group management scenarios.
+## Supported Platform
+- Only: `aiocqhttp` (QQ / OneBot v11).
 
-> Only QQ platforms based on aiohttp / OneBot V11 are currently supported.
-
-## Features
-
-- 🎯 **Targeted Monitoring**: Configure targets by `group_id + qq_id`.
-- 🛡️ **Dual Safeguard**: Real-time event interception plus background polling fallback.
-- 👥 **Concurrent Rules**: Supports multiple users across multiple groups simultaneously.
+## Functional Boundary
+- Handles **image messages only**.
+- Does not process text/voice/video messages.
+- Recall success depends on:
+  - bot admin/owner capability in target groups;
+  - adapter support and policy for `delete_msg`.
+- This release uses **real-time event detection only** (no active polling fallback).
 
 ## Installation
+1. Place this repo under AstrBot plugins directory (e.g. `data/plugins/astrbot_plugin_anti_memes`).
+2. Restart AstrBot.
+3. Confirm plugin is loaded in plugin manager.
 
-1. Clone or download this repository into AstrBot `data/plugins/`.
-2. Ensure the directory name is exactly `astrbot_plugin_anti_memes`.
-3. Restart AstrBot to load the plugin.
+## WebUI Configuration
+Managed via AstrBot official plugin config schema (`_conf_schema.json`):
+- `targets`: dict mapping `group_id` (string) -> list of `user_id` (string).
+- `enable_realtime_recall`: enable real-time detection (`true` by default).
+- `enable_polling_fallback`: kept as config key, default `false` (not active in current implementation).
+- `poll_interval_seconds`: polling interval key (not used in real-time-only mode).
+- `processed_cache_size`: processed message ID cache limit.
 
-## Usage
+## Commands
+- `/add_recall <group_id> <qq_id>`
+- `/del_recall <group_id> <qq_id>`
+- `/list_recall`
 
-### Chat Commands
+> IDs must be numeric strings.
 
-- Add rule: `/add_recall <group_id> <qq_id>`
-  - Example: `/add_recall 123456789 987654321`
-- Remove rule: `/del_recall <group_id> <qq_id>`
-  - Example: `/del_recall 123456789 987654321`
-- List rules: `/list_recall`
+## Permission Requirements
+- Rule-management commands are restricted to administrators (or equivalent privileged callers).
+- Bot must have sufficient group privileges to recall messages.
 
-### Notes
+## FAQ
+### Why recall can fail?
+Bot lacks privilege, message is not recallable/expired, API rejected, or message no longer exists.
 
-1. Message recall relies on the underlying `delete_msg` API; the bot must be group admin/owner.
-2. This plugin is specifically adapted for NapCat / OneBot V11 QQ implementations.
+### Why rules persist after restart?
+Rules are saved in AstrBot plugin config, not in plugin source directory.
 
-## Links
+### Why polling fallback is not recommended?
+Polling requires stable bot API access, stronger rate-limit handling, and adapter guarantees. Real-time mode is safer for marketplace-grade stability.
 
-- [AstrBot Repository](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [Napneko API Docs](https://napneko.github.io/api/4.18.1)
+### Does it support NapCat / OneBot v11?
+It should work where OneBot v11 `delete_msg` is supported. Validate in your own deployment.
+
+## Safety & Compliance
+Use only for moderation and group governance. Do not abuse or violate platform rules. Logs avoid storing image content, image URLs, or message body.
+
+## Changelog
+- `1.0.0`: marketplace-readiness refactor with normalized config, permission boundary, robust event flow, and ordered cache.
