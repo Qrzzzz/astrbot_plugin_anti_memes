@@ -1,60 +1,45 @@
-# 图片精准撤回助手（AstrBot 插件）
+# 图片精准撤回助手
 
-## 项目简介
-`astrbot_plugin_anti_memes` 用于在 QQ 群中监控“指定群号 + 指定 QQ 号”的图片消息，并自动调用 OneBot v11 `delete_msg` 尝试撤回（取决于机器人权限与平台实现）。
+发布级 AstrBot 插件：按“群号 + 用户 QQ”规则自动检测图片并执行撤回，支持 dry-run、诊断、统计、WebUI 配置与命令维护。
 
 ## 适用平台
-- 仅支持：`aiocqhttp`（QQ / OneBot v11）。
+- QQ / OneBot v11 / `aiocqhttp`
 
-## 功能边界
-- 仅处理**图片消息**。
-- 不处理文字、语音、视频等消息类型。
-- 是否撤回成功取决于：
-  - 机器人是否具备群管理员/群主能力；
-  - 目标平台是否支持并允许 `delete_msg`。
-- 本版本采用**实时事件检测**（不启用后台轮询兜底）。
+## 快速开始
+1. 安装插件并重启 AstrBot。
+2. 在 WebUI 确认插件已加载。
+3. 管理员在群聊执行：`/am add <QQ号>`。
+4. 可先执行：`/am dryrun on` 做演练。
 
-## 安装方法
-1. 将仓库放入 AstrBot 插件目录（如 `data/plugins/astrbot_plugin_anti_memes`）。
-2. 重启 AstrBot。
-3. 在插件管理中确认已加载。
+## 指令
+- `/am help`
+- `/am status`
+- `/am add <QQ号>` 或 `/am add <群号> <QQ号>` 或 `/am add @某人`
+- `/am del <QQ号>` 或 `/am del <群号> <QQ号>`
+- `/am list [群号]`
+- `/am dryrun on|off`
+- `/am diagnose`
+- 兼容：`/add_recall` `/del_recall` `/list_recall`
 
-## WebUI 配置说明
-插件通过 AstrBot 官方配置系统管理（`_conf_schema.json`）：
+## WebUI 配置
+核心配置：`rules`、`enable_realtime_recall`、`dry_run`、`protect_bot_self`、`protect_admins`。
 
-- `targets`：监控规则字典，键为群号字符串，值为 QQ 号字符串数组。
-  - 示例：`{"123456789": ["987654321", "123123123"]}`
-- `enable_realtime_recall`：是否启用实时检测（默认 `true`）。
-- `enable_polling_fallback`：保留配置项，默认 `false`（当前实现不启用轮询）。
-- `poll_interval_seconds`：轮询间隔配置项（当前实时模式下不生效）。
-- `processed_cache_size`：已处理消息 ID 缓存上限。
+高级配置：`enable_polling_fallback`（实验功能，默认关闭）、`poll_interval_seconds`、`processed_cache_size`。
 
-## 指令说明
-- `/add_recall <群号> <QQ号>`：添加监控规则。
-- `/del_recall <群号> <QQ号>`：删除监控规则。
-- `/list_recall`：查看全部规则。
+## 权限与边界
+- 仅管理员/群管理可修改规则。
+- 默认保护 bot 自身和群管理。
+- 不记录图片 URL、正文、内容，只记录必要 ID 与错误类型。
 
-> 参数必须是纯数字字符串。
+## FAQ
+- 撤回失败：通常是权限不足、平台拒绝、消息不可撤回。
+- 未触发：检查是否命中群号、用户、图片类型和 `enable_realtime_recall`。
+- 普通成员不可配置：这是安全限制。
+- NapCat：若提供 OneBot v11 `delete_msg` 通常可用，需自测。
+- QQ 官方机器人：本插件不支持。
 
-## 权限要求
-- 只有管理员（或具备管理权限的调用者）可使用配置指令。
-- 机器人需要在目标群具备足够权限，才能成功撤回消息。
+## 安全声明
+仅用于群管理与合规场景，禁止骚扰与滥用。
 
-## 常见问题
-### 为什么撤回失败？
-常见原因：机器人权限不足、消息不可撤回、平台 API 拒绝、消息已不存在。
-
-### 为什么重启后规则还在？
-规则保存在 AstrBot 插件配置中，不写入插件源码目录，重启后会自动加载。
-
-### 为什么不建议开启轮询？
-轮询依赖额外 API 能力、稳定 bot 对象和限流策略；为确保发布稳定性，本版本默认且实际采用实时事件模式。
-
-### NapCat / OneBot v11 是否支持？
-原则上支持 OneBot v11 的 `delete_msg` 场景；请在你的网关实现中实测权限和风控表现。
-
-## 安全与合规声明
-本插件仅用于群组管理与秩序维护，不应用于骚扰、滥用或绕过平台规则。插件日志不记录图片内容、图片 URL 或消息正文，只记录必要 ID 和错误类型。
-
-## 版本说明
-- `1.0.0`：发布级重构版本，统一配置体系、权限边界、事件处理与缓存策略。
+## 更新日志
+见 [CHANGELOG.md](./CHANGELOG.md)。
