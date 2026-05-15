@@ -1,30 +1,33 @@
 {
-  "targets": {
-    "type": "dict",
-    "description": "监控目标配置。键为群号，值为该群内需要自动撤回图片的 QQ 号列表。",
-    "hint": "示例：{\"123456789\": [\"987654321\", \"123123123\"]}。建议通过 /add_recall 和 /del_recall 指令维护。",
-    "default": {},
-    "editor_mode": true,
-    "editor_language": "json"
+  "rules": {
+    "type": "template_list",
+    "description": "规则列表（推荐在 WebUI 维护）",
+    "hint": "每条规则限定一个群号+QQ号，命中图片后执行撤回动作。",
+    "default": [],
+    "template": {
+      "enabled": true,
+      "group_id": "123456789",
+      "user_id": "987654321",
+      "match_image": true,
+      "action": "recall",
+      "notify_group": false,
+      "notify_admin": false,
+      "cooldown_seconds": 0,
+      "note": ""
+    }
   },
-  "enable_realtime_recall": {
-    "type": "bool",
-    "description": "启用实时消息事件检测。",
-    "default": true
-  },
-  "enable_polling_fallback": {
-    "type": "bool",
-    "description": "启用 OneBot v11 历史消息轮询兜底。仅在确认当前适配器支持 get_group_msg_history 且可稳定获取 bot API 时启用。",
-    "default": false
-  },
-  "poll_interval_seconds": {
-    "type": "int",
-    "description": "轮询间隔秒数。仅在启用轮询兜底时生效。",
-    "default": 30
-  },
-  "processed_cache_size": {
-    "type": "int",
-    "description": "已处理消息 ID 缓存上限，用于避免重复撤回。",
-    "default": 2000
-  }
+  "targets": {"type": "dict", "description": "兼容旧版配置（自动迁移到 rules）", "hint": "高级选项：建议不要新增，仅用于兼容历史配置。", "default": {}},
+  "enable_realtime_recall": {"type": "bool", "description": "启用实时检测", "hint": "默认开启。", "default": true},
+  "enable_polling_fallback": {"type": "bool", "description": "高级选项：启用轮询兜底", "hint": "实验功能，默认关闭。", "default": false},
+  "poll_interval_seconds": {"type": "int", "description": "高级选项：轮询间隔秒", "hint": "仅轮询兜底开启时生效。", "default": 30},
+  "processed_cache_size": {"type": "int", "description": "已处理消息缓存上限", "hint": "用于避免重复撤回。", "default": 2000},
+  "stop_event_after_recall": {"type": "bool", "description": "撤回成功后停止事件继续传播", "hint": "默认开启。", "default": true},
+  "dry_run": {"type": "bool", "description": "演练模式", "hint": "开启后只记录不真正撤回。", "default": false},
+  "log_level": {"type": "select", "description": "日志级别", "hint": "默认 INFO。", "default": "INFO", "options": ["DEBUG", "INFO", "WARNING", "ERROR"]},
+  "notify_on_success": {"type": "bool", "description": "撤回成功时通知", "hint": "默认关闭。", "default": false},
+  "notify_on_failure": {"type": "bool", "description": "撤回失败时通知", "hint": "默认开启。", "default": true},
+  "protect_bot_self": {"type": "bool", "description": "保护机器人自身消息", "hint": "默认开启。", "default": true},
+  "protect_admins": {"type": "bool", "description": "保护群主/管理员", "hint": "默认开启。", "default": true},
+  "enable_at_parse": {"type": "bool", "description": "支持 @ 解析 QQ 号", "hint": "默认开启。", "default": true},
+  "max_rules_per_group": {"type": "int", "description": "每个群最大规则数", "hint": "防止误操作堆积。", "default": 100}
 }

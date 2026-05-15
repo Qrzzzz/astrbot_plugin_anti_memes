@@ -1,58 +1,104 @@
-# Image Precision Recall Assistant (AstrBot Plugin)
+# 🛡️ Image Precision Recall Assistant (`astrbot_plugin_anti_memes`)
 
-## Overview
-`astrbot_plugin_anti_memes` monitors image messages from configured users in configured QQ groups, then calls OneBot v11 `delete_msg` to recall them (subject to bot permissions and adapter behavior).
+A production-oriented AstrBot plugin for QQ group moderation on **OneBot v11 / aiocqhttp**. It detects image messages from configured users in configured groups and applies rule-based actions (recall / dry-run), with WebUI config and command management.
 
-## Supported Platform
-- Only: `aiocqhttp` (QQ / OneBot v11).
+---
 
-## Functional Boundary
-- Handles **image messages only**.
-- Does not process text/voice/video messages.
-- Recall success depends on:
-  - bot admin/owner capability in target groups;
-  - adapter support and policy for `delete_msg`.
-- This release uses **real-time event detection only** (no active polling fallback).
+## ✨ Highlights
 
-## Installation
-1. Place this repo under AstrBot plugins directory (e.g. `data/plugins/astrbot_plugin_anti_memes`).
-2. Restart AstrBot.
-3. Confirm plugin is loaded in plugin manager.
+- 🎯 **Precise scope control**: target by group + user + image messages only.
+- 🧠 **Rule-based config**: modern `rules` model with legacy `targets` compatibility.
+- 🧪 **Dry-run mode**: verify behavior safely before real recalls.
+- 🧰 **Diagnostics support**: quick checks for platform/permission/config issues.
+- 🔒 **Safe defaults**: protect bot self and admins by default.
 
-## WebUI Configuration
-Managed via AstrBot official plugin config schema (`_conf_schema.json`):
-- `targets`: dict mapping `group_id` (string) -> list of `user_id` (string).
-- `enable_realtime_recall`: enable real-time detection (`true` by default).
-- `enable_polling_fallback`: kept as config key, default `false` (not active in current implementation).
-- `poll_interval_seconds`: polling interval key (not used in real-time-only mode).
-- `processed_cache_size`: processed message ID cache limit.
+---
 
-## Commands
-- `/add_recall <group_id> <qq_id>`
-- `/del_recall <group_id> <qq_id>`
+## 🧩 Supported Platform
+
+- ✅ QQ / OneBot v11 / `aiocqhttp`
+- ⚠️ Other adapters are not guaranteed
+
+---
+
+## 🚀 Quick Start
+
+1. Install the plugin and restart AstrBot.
+2. Confirm plugin is loaded in WebUI.
+3. Run `/am help` in a group.
+4. Add a rule as admin: `/am add <qq>` (uses current group by default).
+5. Start with dry-run: `/am dryrun on`.
+6. Turn off dry-run after validation: `/am dryrun off`.
+
+---
+
+## 💬 Commands
+
+### Main command group
+
+- `/am help`
+- `/am status`
+- `/am add <qq>`
+- `/am add <group> <qq>`
+- `/am add @user`
+- `/am del <qq>`
+- `/am del <group> <qq>`
+- `/am list [group]`
+- `/am dryrun on|off`
+- `/am diagnose`
+
+### Legacy compatibility
+
+- `/add_recall <group> <qq>`
+- `/del_recall <group> <qq>`
 - `/list_recall`
 
-> IDs must be numeric strings.
+> ℹ️ Rule management commands require admin/moderator privileges.
 
-## Permission Requirements
-- Rule-management commands are restricted to administrators (or equivalent privileged callers).
-- Bot must have sufficient group privileges to recall messages.
+---
 
-## FAQ
-### Why recall can fail?
-Bot lacks privilege, message is not recallable/expired, API rejected, or message no longer exists.
+## ⚙️ WebUI Config Notes
 
-### Why rules persist after restart?
-Rules are saved in AstrBot plugin config, not in plugin source directory.
+### Core options
 
-### Why polling fallback is not recommended?
-Polling requires stable bot API access, stronger rate-limit handling, and adapter guarantees. Real-time mode is safer for marketplace-grade stability.
+- `rules`
+- `enable_realtime_recall`
+- `dry_run`
+- `protect_bot_self`
+- `protect_admins`
 
-### Does it support NapCat / OneBot v11?
-It should work where OneBot v11 `delete_msg` is supported. Validate in your own deployment.
+### Advanced options
 
-## Safety & Compliance
-Use only for moderation and group governance. Do not abuse or violate platform rules. Logs avoid storing image content, image URLs, or message body.
+- `enable_polling_fallback` (experimental, disabled by default)
+- `poll_interval_seconds`
+- `processed_cache_size`
+- `stop_event_after_recall`
 
-## Changelog
-- `1.0.0`: marketplace-readiness refactor with normalized config, permission boundary, robust event flow, and ordered cache.
+---
+
+## 🔐 Security & Boundaries
+
+- Admin/moderator-only management operations.
+- No logging of image URL/content or full message body.
+- Logs keep only minimal IDs and error categories for diagnostics.
+
+---
+
+## ❓ FAQ
+
+- **Recall failed?** Usually permission, platform rejection, or recall window issues.
+- **Not triggered?** Check group/user matching, image presence, and config flags.
+- **NapCat support?** Usually works if OneBot v11 + `delete_msg` is stable.
+- **Official QQ bot support?** Not supported.
+
+---
+
+## 📜 Compliance
+
+Use this plugin for legitimate moderation and compliance scenarios only.
+
+---
+
+## 📝 Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md).
